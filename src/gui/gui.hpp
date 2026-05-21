@@ -11,7 +11,9 @@ public:
   MwWidget window = NULL;
   MwWidget main_box = NULL;
 
-  MwWidget content_box = NULL;
+  MwWidget tab_view = NULL;
+  MwWidget search_results_box = NULL;
+  MwWidget scan_boxes;
 
   MwWidget search_box_holder = NULL;
   MwWidget search_box_text = NULL;

@@ -34,9 +34,9 @@ GUI::GUI() {
                        1, MwNtext, "Search", MwNratio, 1, NULL);
   search_box = MwVaCreateWidget(MwEntryClass, "entry", search_box_holder, 0, 0,
                                 640, 16, MwNratio, 8, NULL);
-  content_box =
-      MwVaCreateWidget(MwBoxClass, "entry", main_box, 0, 0, 640, 16,
-                       MwNorientation, MwVERTICAL, MwNratio, 16, NULL);
+  tab_view = MwVaCreateWidget(MwTabClass, "entry", main_box, 0, 0, 640, 16,
+                              MwNratio, 16, NULL);
+  search_results_box = MwTabAdd(tab_view, "Results");
 
   scan_button =
       MwVaCreateWidget(MwButtonClass, "entry", scan_button_holder, 0, 0, 640,

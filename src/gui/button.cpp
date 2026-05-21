@@ -36,12 +36,18 @@ void GUI::window_scan_thing(MwWidget widget, void *user, void *client) {
   if (self->activateScanner == 1) {
     self->activateScanner = 2;
   } else if (self->activateScanner == 2) {
-    int width = MwGetInteger(self->content_box, MwNwidth);
-    int height = MwGetInteger(self->content_box, MwNheight);
-    MwWidget box = MwVaCreateWidget(MwTreeViewClass, "box", self->content_box,
-                                    0, 0, width - 1, height - 1, NULL);
-    MwStep(self->content_box);
-    MwForceRender(self->content_box);
+    self->scan_boxes = MwTabAdd(self->tab_view, self->knownDir);
+
+    MwStep(self->tab_view);
+
+    MwStep(self->scan_boxes);
+
+    self->activateScanner = 3;
+  } else if (self->activateScanner == 3) {
+    int width = MwGetInteger(self->scan_boxes, MwNwidth);
+    int height = MwGetInteger(self->scan_boxes, MwNheight);
+    MwWidget box = MwVaCreateWidget(MwTreeViewClass, "box", self->scan_boxes, 0,
+                                    0, width - 1, height - 1, NULL);
     self->dir_recurse(self->knownDir, [=](std::filesystem::path path) {
       auto e = path.extension().string();
       std::transform(e.begin(), e.end(), e.begin(),
@@ -69,6 +75,6 @@ void GUI::window_scan_thing(MwWidget widget, void *user, void *client) {
     });
     self->scans.push_back(
         (GUI::ScanEntry){.box = box, .col1 = NULL, .col2 = NULL});
-    self->activateScanner = false;
+    self->activateScanner = 0;
   }
 }
