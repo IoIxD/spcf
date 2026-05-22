@@ -1,5 +1,4 @@
 #include "gui.hpp"
-#include <algorithm>
 
 GUI::GUI() {
   main_window = MwVaCreateWidget(MwWindowClass, "main", NULL, MwDEFAULT,
@@ -22,6 +21,9 @@ GUI::GUI() {
                        1, MwNtext, "Search", MwNratio, 1, NULL);
   search_box = MwVaCreateWidget(MwEntryClass, "entry", search_box_holder, 0, 0,
                                 640, 16, MwNratio, 8, NULL);
+  search_box_button =
+      MwVaCreateWidget(MwButtonClass, "entry", search_box_holder, 0, 0, 640, 16,
+                       MwNratio, 1, MwNtext, "Go", NULL);
   tab_view = MwVaCreateWidget(MwTabClass, "entry", main_box, 0, 0, 640, 16,
                               MwNratio, 16, NULL);
   search_results_box = MwTabAdd(tab_view, "Results");
@@ -44,7 +46,9 @@ void GUI::window_tick(MwWidget widget, void *user, void *client) {
   bool didErrorCreate = false;
   bool didSBCCreate = false;
   bool didSBECreate = false;
+  bool didScanStartCreate = false;
 
+  self->errMutex.lock();
   for (auto err : self->errorCreationQueue) {
     MwWidget mb = MwMessageBox(widget, err.c_str(), "Error",
                                MwMB_ICONERROR | MwMB_BUTTONOK);
@@ -53,6 +57,7 @@ void GUI::window_tick(MwWidget widget, void *user, void *client) {
     MwReparent(mb, self->main_window);
     didErrorCreate = true;
   }
+  self->errMutex.unlock();
   if (didErrorCreate)
     self->errorCreationQueue.erase(self->errorCreationQueue.begin());
 
@@ -61,6 +66,7 @@ void GUI::window_tick(MwWidget widget, void *user, void *client) {
       self->scanLines.resize(sc.idx + 1);
     }
     self->scanLines[sc.idx].tab = MwTabAdd(self->tab_view, sc.dir);
+    MwTabFocus(self->tab_view, sc.dir);
 
     int width = MwGetInteger(self->scanLines[sc.idx].tab, MwNwidth);
     int height = MwGetInteger(self->scanLines[sc.idx].tab, MwNheight);
@@ -84,5 +90,13 @@ void GUI::window_tick(MwWidget widget, void *user, void *client) {
   }
   if (didSBECreate)
     self->scanBoxEntryQueue.erase(self->scanBoxEntryQueue.begin());
+
+  for (auto scan : self->scanStartQueue) {
+    self->start_scan(scan.dir, scan.labelName);
+    didScanStartCreate = true;
+  }
+  if (didScanStartCreate)
+    self->scanStartQueue.erase(self->scanStartQueue.begin());
+
   self->tickMutex.unlock();
 }

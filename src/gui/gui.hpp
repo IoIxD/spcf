@@ -1,4 +1,5 @@
 #pragma once
+#include "../database/database.hpp"
 #include "../devices/devices.hpp"
 #include "../model/model.hpp"
 #include <Mw/Milsko.h>
@@ -8,6 +9,7 @@
 #include <thread>
 
 class GUI {
+  Database mDB;
 
 public:
   MwWidget main_window = NULL;
@@ -17,6 +19,7 @@ public:
   MwWidget search_box_holder = NULL;
   MwWidget search_box_text = NULL;
   MwWidget search_box = NULL;
+  MwWidget search_box_button = NULL;
   MwWidget device_scan_button_holder = NULL;
   MwWidget device_scan_button = NULL;
   MwWidget directory_chooser = NULL;
@@ -33,10 +36,12 @@ public:
   ModelContext *modelContext = NULL;
 
   std::mutex tickMutex;
+  std::mutex errMutex;
   std::unordered_map<std::filesystem::path, char> scannedFiles;
   struct ScanCreationEntry {
     int idx;
     char dir[255];
+    std::string labelName;
   };
   struct ScanLine {
     MwWidget box = NULL;
@@ -56,15 +61,15 @@ public:
   std::vector<std::thread *> scanStarterThreads;
   std::vector<Device> scannedDevices;
   std::vector<std::string> errorCreationQueue;
-
-  int activateScanner = 0;
+  std::vector<ScanCreationEntry> scanStartQueue;
+  std::string scanDeviceName;
 
   GUI();
 
   void dir_recurse(const std::string &path,
                    std::function<void(const std::filesystem::path &)> cb);
 
-  void start_scan(std::string dir);
+  void start_scan(std::string dir, std::string tbl);
 
   static void file_choose_button_handler(MwWidget widget, void *user,
                                          void *client);

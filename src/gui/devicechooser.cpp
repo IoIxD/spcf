@@ -5,13 +5,17 @@
 static void mount_success(void *user, std::string mountpoint) {
   GUI *self = (GUI *)user;
   printf("success. now scanning %s\n", mountpoint.c_str());
-  self->start_scan(mountpoint);
+  GUI::ScanCreationEntry entry;
+  entry.idx = 0;
+  snprintf(entry.dir, sizeof(entry.dir), "%s", mountpoint.c_str());
+  entry.labelName = self->scanDeviceName;
+  self->scanStartQueue.push_back(entry);
 }
 static void mount_err(void *user, std::string err) {
   GUI *self = (GUI *)user;
-  self->tickMutex.lock();
+  self->errMutex.lock();
   self->errorCreationQueue.push_back(err);
-  self->tickMutex.unlock();
+  self->errMutex.unlock();
 }
 
 static void device_activate(MwWidget handle, void *user, void *call) {
@@ -24,7 +28,9 @@ static void device_activate(MwWidget handle, void *user, void *call) {
     if (dev.label() == std::string(name)) {
       printf("Mounting %s\n", dev.label().c_str());
 
+      self->scanDeviceName = dev.label();
       dev.mount(mount_success, mount_err, user);
+
       MwDestroyWidget(self->device_window);
     }
   }

@@ -8,7 +8,9 @@ void GUI::dir_recurse(const std::string &path,
       if (f->d_name[0] == '.')
         continue;
       struct stat buf;
-      lstat((path + f->d_name).c_str(), &buf);
+      lstat((path + std::filesystem::path::preferred_separator + f->d_name)
+                .c_str(),
+            &buf);
       if (S_ISDIR(buf.st_mode)) {
         dir_recurse(path + std::filesystem::path::preferred_separator +
                         f->d_name + std::filesystem::path::preferred_separator,
@@ -20,7 +22,14 @@ void GUI::dir_recurse(const std::string &path,
     closedir(dir);
   }
 };
-void GUI::start_scan(std::string dir) {
+static void onError(std::string err, void *ud) {
+  GUI *self = (GUI *)ud;
+  self->errMutex.lock();
+  self->errorCreationQueue.push_back(err);
+  self->errMutex.unlock();
+}
+
+void GUI::start_scan(std::string dir, std::string tblName) {
   if (!modelContext) {
     modelContext = new ModelContext();
   }
@@ -35,6 +44,10 @@ void GUI::start_scan(std::string dir) {
 
   printf("starting scan of %s\n", dir.c_str());
 
+  if (!mDB.create_table(creationEntry.dir, onError, this)) {
+    return;
+  };
+
   this->scanThreads.push_back(new std::thread([=]() {
     this->dir_recurse(creationEntry.dir, [=](std::filesystem::path path) {
       auto e = path.extension().string();
@@ -42,6 +55,11 @@ void GUI::start_scan(std::string dir) {
                      [](unsigned char c) { return std::tolower(c); });
       for (auto ext : avail_file_exts) {
         if (e == ext) {
+          std::string p = path.string();
+          if (path.string().find(creationEntry.dir) != std::string::npos) {
+            p = p.substr(strlen(creationEntry.dir));
+          }
+          printf(">%s\n", p.c_str());
           this->modelContext->scan(path.string().c_str());
           std::string foundLabels = "";
 
@@ -54,8 +72,10 @@ void GUI::start_scan(std::string dir) {
           GUI::ScanEntry entry = {
               .idx = i,
           };
-          snprintf(entry.line1, 255, "%s", path.filename().c_str());
+          snprintf(entry.line1, 255, "%s", p.c_str());
           snprintf(entry.line2, 255, "%s", foundLabels.c_str());
+
+          mDB.new_entry(tblName, entry.line1, entry.line2, onError, this);
 
           this->tickMutex.lock();
           this->scanBoxEntryQueue.push_back(entry);
@@ -66,5 +86,4 @@ void GUI::start_scan(std::string dir) {
       }
     });
   }));
-  this->activateScanner = 1;
 }

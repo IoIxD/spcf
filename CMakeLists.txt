@@ -19,7 +19,7 @@ set(MILSKO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/milsko)
 add_subdirectory(${MILSKO_DIR})
 
 add_executable(${PROJECT_NAME} ${SOURCES})
-target_link_libraries(${PROJECT_NAME} spcf_rust Mw ${OPENSSL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} spcf_rust sqlite3 Mw ${OPENSSL_LIBRARIES})
 if(UNIX)
   target_link_libraries(${PROJECT_NAME} blkid)
 endif()
