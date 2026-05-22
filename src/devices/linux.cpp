@@ -15,7 +15,7 @@ std::vector<Device> Device::get() {
   blkid_cache cache;
 
   blkid_get_cache(&cache, NULL);
-  blkid_probe_all_removable(cache);
+  blkid_probe_all(cache);
 
   auto iter = blkid_dev_iterate_begin(cache);
   blkid_dev dev;
@@ -141,4 +141,8 @@ void Device::mount(void (*successFunc)(void *, std::string),
   successFunc(ud, mountpoint);
 }
 
+void Device::unmount() {
+  /* We only kind of vaguely care if this fails. */
+  ::umount(mDevName);
+}
 #endif
