@@ -32,7 +32,7 @@ public:
   bool showingScan = false;
   ModelContext *modelContext = NULL;
 
-  std::mutex scanMutex;
+  std::mutex tickMutex;
   std::unordered_map<std::filesystem::path, char> scannedFiles;
   struct ScanCreationEntry {
     int idx;
@@ -53,7 +53,9 @@ public:
   std::vector<ScanLine> scanLines;
 
   std::vector<std::thread *> scanThreads;
+  std::vector<std::thread *> scanStarterThreads;
   std::vector<Device> scannedDevices;
+  std::vector<std::string> errorCreationQueue;
 
   int activateScanner = 0;
 
@@ -68,7 +70,7 @@ public:
                                          void *client);
   static void device_choose_button_handler(MwWidget widget, void *user,
                                            void *client);
-  static void window_scan_thing(MwWidget widget, void *user, void *client);
+  static void window_tick(MwWidget widget, void *user, void *client);
 };
 
 static const std::string avail_file_exts[] = {

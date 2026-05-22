@@ -47,7 +47,7 @@ GUI::GUI() {
 
   MwAddUserHandler(device_scan_button, MwNactivateHandler,
                    device_choose_button_handler, this);
-  MwAddUserHandler(main_window, MwNtickHandler, window_scan_thing, this);
+  MwAddUserHandler(main_window, MwNtickHandler, window_tick, this);
 }
 
 void GUI::start_scan(std::string dir) {
@@ -87,9 +87,9 @@ void GUI::start_scan(std::string dir) {
           snprintf(entry.line1, 255, "%s", path.filename().c_str());
           snprintf(entry.line2, 255, "%s", foundLabels.c_str());
 
-          this->scanMutex.lock();
+          this->tickMutex.lock();
           this->scanBoxEntryQueue.push_back(entry);
-          this->scanMutex.unlock();
+          this->tickMutex.unlock();
 
           break;
         };
@@ -97,4 +97,60 @@ void GUI::start_scan(std::string dir) {
     });
   }));
   this->activateScanner = 1;
+}
+
+static void MWAPI ok(MwWidget handle, void *user, void *call) {
+  (void)handle;
+  (void)call;
+  MwDestroyWidget(MwGetParent(handle));
+}
+
+void GUI::window_tick(MwWidget widget, void *user, void *client) {
+  GUI *self = (GUI *)user;
+  self->tickMutex.lock();
+
+  bool didErrorCreate = false;
+  bool didSBCCreate = false;
+  bool didSBECreate = false;
+
+  for (auto err : self->errorCreationQueue) {
+    MwWidget mb = MwMessageBox(widget, err.c_str(), "Error",
+                               MwMB_ICONERROR | MwMB_BUTTONOK);
+    MwAddUserHandler(MwMessageBoxGetChild(mb, MwMB_BUTTONOK),
+                     MwNactivateHandler, ok, mb);
+    MwReparent(mb, self->main_window);
+    didErrorCreate = true;
+  }
+  if (didErrorCreate)
+    self->errorCreationQueue.erase(self->errorCreationQueue.begin());
+
+  for (auto sc : self->scanBoxCreationQueue) {
+    if (sc.idx >= self->scanLines.size()) {
+      self->scanLines.resize(sc.idx + 1);
+    }
+    self->scanLines[sc.idx].tab = MwTabAdd(self->tab_view, sc.dir);
+
+    int width = MwGetInteger(self->scanLines[sc.idx].tab, MwNwidth);
+    int height = MwGetInteger(self->scanLines[sc.idx].tab, MwNheight);
+    MwWidget box =
+        MwVaCreateWidget(MwListBoxClass, "box", self->scanLines[sc.idx].tab, 0,
+                         0, width - 1, height - 1, NULL);
+    MwListBoxSetWidth(box, 0, -384);
+    int index = MwListBoxSet(box, -1, 0, "Filename");
+    MwListBoxSet(box, index, -1, "Keywords");
+
+    self->scanLines[sc.idx].box = box;
+    didSBCCreate = true;
+  }
+  if (didSBCCreate)
+    self->scanBoxCreationQueue.erase(self->scanBoxCreationQueue.begin());
+
+  for (auto sc : self->scanBoxEntryQueue) {
+    int index = MwListBoxSet(self->scanLines[sc.idx].box, -1, 0, sc.line1);
+    MwListBoxSet(self->scanLines[sc.idx].box, index, -1, sc.line2);
+    didSBECreate = true;
+  }
+  if (didSBECreate)
+    self->scanBoxEntryQueue.erase(self->scanBoxEntryQueue.begin());
+  self->tickMutex.unlock();
 }

@@ -8,7 +8,6 @@
 class Device {
 public:
   enum class Type { CD = 0, Unknown };
-  char mError[256];
 
 private:
   char mLabel[PATH_MAX + 1];
@@ -26,7 +25,7 @@ public:
   std::string label() { return mLabel; };
   Device::Type type() { return mType; }
 
-  std::optional<std::string> mount();
+  void mount(void (*successFunc)(void *, std::string),
+             void (*errFunc)(void *, std::string), void *ud);
   void unmount();
-  std::string error() { return mError; };
 };

@@ -2,10 +2,16 @@
 #include "../devices/devices.hpp"
 #include "gui.hpp"
 
-static void MWAPI ok(MwWidget handle, void *user, void *call) {
-  (void)handle;
-  (void)call;
-  MwDestroyWidget(MwGetParent(handle));
+static void mount_success(void *user, std::string mountpoint) {
+  GUI *self = (GUI *)user;
+  printf("success. now scanning %s\n", mountpoint.c_str());
+  self->start_scan(mountpoint);
+}
+static void mount_err(void *user, std::string err) {
+  GUI *self = (GUI *)user;
+  self->tickMutex.lock();
+  self->errorCreationQueue.push_back(err);
+  self->tickMutex.unlock();
 }
 
 static void device_activate(MwWidget handle, void *user, void *call) {
@@ -17,18 +23,9 @@ static void device_activate(MwWidget handle, void *user, void *call) {
   for (auto dev : self->scannedDevices) {
     if (dev.label() == std::string(name)) {
       printf("Mounting %s\n", dev.label().c_str());
-      auto path = dev.mount();
-      if (path) {
-        self->start_scan(path.value());
-        MwDestroyWidget(self->device_window);
-      } else {
-        MwWidget mb = MwMessageBox(handle, dev.error().c_str(), "Error",
-                                   MwMB_ICONERROR | MwMB_BUTTONOK);
-        MwAddUserHandler(MwMessageBoxGetChild(mb, MwMB_BUTTONOK),
-                         MwNactivateHandler, ok, mb);
-        MwReparent(mb, self->main_window);
-      }
-      return;
+
+      dev.mount(mount_success, mount_err, user);
+      MwDestroyWidget(self->device_window);
     }
   }
 }
@@ -53,7 +50,11 @@ void GUI::device_choose_button_handler(MwWidget widget, void *user,
 #else
                          " run as root to scan/mount\n"
 #endif
-                         "external devices.\n",
+                         "external devices."
+#ifdef __linux__
+                         " (or install polkit)\n",
+#endif
+
                          MwNforeground, "red", NULL);
     /* TODO: On platforms like Windows where we can request administrator right
      * here, have a button for doing so. */
@@ -62,6 +63,7 @@ void GUI::device_choose_button_handler(MwWidget widget, void *user,
       MwListBoxClass, "listbox", self->device_window, 15, admin ? 15 : 64 + 15,
       320 - 32, 240 - (admin ? 64 : 128), MwNdisabled, !admin, NULL);
   if (admin) {
+    self->scannedDevices = Device::get();
     for (auto dev : self->scannedDevices) {
       if (dev.type() == Device::Type::Unknown) {
         continue;
@@ -71,7 +73,6 @@ void GUI::device_choose_button_handler(MwWidget widget, void *user,
       MwAddUserHandler(self->device_listbox, MwNlistBoxActivateHandler,
                        device_activate, self);
     }
-    self->scannedDevices = Device::get();
   }
 
   self->device_window_browse =

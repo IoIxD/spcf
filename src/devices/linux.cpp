@@ -1,12 +1,14 @@
-#include <unistd.h>
 #ifdef __linux__
+#include <unistd.h>
 
+#include "../admin/admin.hpp"
 #include "devices.hpp"
 #include <blkid/blkid.h>
 #include <filesystem>
 #include <linux/limits.h>
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/wait.h>
 
 std::vector<Device> Device::get() {
   std::vector<Device> devs;
@@ -69,27 +71,74 @@ std::vector<Device> Device::get() {
   return devs;
 };
 
-std::optional<std::string> Device::mount() {
+void Device::mount(void (*successFunc)(void *, std::string),
+                   void (*errFunc)(void *, std::string), void *ud) {
+  char error[256];
   std::filesystem::path path = mDevName;
   printf("mounting %s (%s)\n", mDevName, mFSType);
-  char mountpoint[255];
-  snprintf(mountpoint, 255, "/mnt/spcf/%s/", mUUID);
+  char mountpoint[PATH_MAX];
+  memset(mountpoint, 0, PATH_MAX);
+  char cwd[PATH_MAX];
+  memset(cwd, 0, PATH_MAX);
+  getcwd(cwd, PATH_MAX);
+  snprintf(mountpoint, PATH_MAX, "%s/.spcf/%s/", cwd, mLabel);
   if (!std::filesystem::exists(mountpoint)) {
     std::filesystem::create_directories(mountpoint);
   }
   auto err = ::mount(mDevName, mountpoint, mFSType,
                      MS_RDONLY | MS_NOEXEC | MS_NOATIME, NULL);
-  /* ignore "device is busy" errors. */
-
   if (err != 0) {
-    if (errno == EBUSY) {
-      return mountpoint;
+    /* try and use pkexec if permission was denied. */
+    if (errno == EPERM && polkit_path()) {
+      int f;
+      int pipefd[2];
+      pipe(pipefd);
+      if ((f = fork()) == 0) {
+        close(pipefd[0]); // close reading end in the child
+
+        dup2(pipefd[1], 2); // send stderr to the pipe
+
+        close(pipefd[1]); // this descriptor is no longer needed
+
+        char *args[] = {(char *)"pkexec", (char *)"mount", mDevName, mountpoint,
+                        NULL};
+        printf("running(?) pkexec mount %s %s\n", mDevName, mountpoint);
+        execve(polkit_path(), args, NULL);
+        exit(0);
+      } else {
+        waitpid(f, NULL, 0);
+
+        char buffer[4096];
+        char *buffer_ptr = buffer;
+
+        close(pipefd[1]); // close the write end of the pipe in the parent
+
+        while (read(pipefd[0], buffer, sizeof(buffer)) != 0) {
+        }
+
+        if (strlen(buffer_ptr) != 0) {
+          char *point;
+          while ((point = strstr(buffer_ptr, ": "))) {
+            buffer_ptr[point - buffer + 1] = '\n';
+          }
+          if (strstr(buffer_ptr,
+                     "source write-protected, mounted read-only.")) {
+            successFunc(ud, mountpoint);
+          } else {
+            errFunc(ud, buffer_ptr);
+          }
+        } else {
+          printf("no error. calling success func\n");
+          successFunc(ud, mountpoint);
+        }
+        return;
+      }
     } else {
-      snprintf(this->mError, 255, "%s (Error %d)", strerror(errno), errno);
-      return {};
+      snprintf(error, 255, "%s (Error %d)", strerror(errno), errno);
+      errFunc(ud, error);
     }
   }
-  return mountpoint;
+  successFunc(ud, mountpoint);
 }
 
 #endif
