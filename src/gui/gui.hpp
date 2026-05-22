@@ -28,6 +28,7 @@ public:
   bool showingScan = false;
 
   std::mutex scanMutex;
+  std::unordered_map<std::filesystem::path, char> scannedFiles;
   struct ScanCreationEntry {
     int idx;
     char dir[255];

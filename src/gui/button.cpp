@@ -19,6 +19,12 @@ static void MWAPI file_callback(MwWidget handle, void *user_data,
 
   self->scanThreads.push_back(new std::thread([=]() {
     self->dir_recurse(creationEntry.dir, [=](std::filesystem::path path) {
+      self->scanMutex.lock();
+      if (self->scannedFiles.find(path) != self->scannedFiles.end()) {
+        return;
+      }
+      self->scanMutex.unlock();
+
       auto e = path.extension().string();
       std::transform(e.begin(), e.end(), e.begin(),
                      [](unsigned char c) { return std::tolower(c); });
@@ -46,6 +52,8 @@ static void MWAPI file_callback(MwWidget handle, void *user_data,
           break;
         };
       }
+
+      self->scannedFiles.insert_or_assign(path, 0);
     });
   }));
   self->activateScanner = 1;
@@ -100,7 +108,7 @@ void GUI::window_scan_thing(MwWidget widget, void *user, void *client) {
     int index = MwListBoxSet(self->scanLines[sc.idx].box, -1, 0, sc.line1);
     MwListBoxSet(self->scanLines[sc.idx].box, index, -1, sc.line2);
 
-    didScanBoxCreate = true;
+    didScanEntryCreate = true;
   }
   if (didScanEntryCreate) {
     self->scanBoxEntryQueue.erase(self->scanBoxEntryQueue.begin());
