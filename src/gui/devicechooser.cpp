@@ -1,3 +1,4 @@
+#include "../admin/admin.hpp"
 #include "../devices/devices.hpp"
 #include "gui.hpp"
 
@@ -37,29 +38,45 @@ void GUI::device_choose_button_handler(MwWidget widget, void *user,
   GUI *self = (GUI *)user;
   self->device_window =
       MwVaCreateWidget(MwWindowClass, "window", NULL, MwDEFAULT, MwDEFAULT, 320,
-                       200, MwNtitle, "Select Device", NULL);
+                       240, MwNtitle, "Select Device", NULL);
 
   MwReparent(self->device_window, self->main_window);
 
-  self->device_listbox =
-      MwCreateWidget(MwListBoxClass, "listbox", self->device_window, 15, 15,
-                     320 - 32, 200 - 64);
-
-  self->scannedDevices = Device::get();
-
-  for (auto dev : self->scannedDevices) {
-    if (dev.type() == Device::Type::Unknown) {
-      continue;
+  auto admin = is_admin();
+  if (!admin) {
+    self->device_warning =
+        MwVaCreateWidget(MwLabelClass, "warning", self->device_window, 15, 15,
+                         320 - 32, 64, MwNtext,
+                         "You must"
+#ifdef _WIN32
+                         "be an administrator\nto scan/mount"
+#else
+                         " run as root to scan/mount\n"
+#endif
+                         "external devices.\n",
+                         MwNforeground, "red", NULL);
+    /* TODO: On platforms like Windows where we can request administrator right
+     * here, have a button for doing so. */
+  }
+  self->device_listbox = MwVaCreateWidget(
+      MwListBoxClass, "listbox", self->device_window, 15, admin ? 15 : 64 + 15,
+      320 - 32, 240 - (admin ? 64 : 128), MwNdisabled, !admin, NULL);
+  if (admin) {
+    for (auto dev : self->scannedDevices) {
+      if (dev.type() == Device::Type::Unknown) {
+        continue;
+      }
+      printf("found %s\n", dev.label().c_str());
+      MwListBoxSet(self->device_listbox, -1, 0, dev.label().c_str());
+      MwAddUserHandler(self->device_listbox, MwNlistBoxActivateHandler,
+                       device_activate, self);
     }
-    printf("found %s\n", dev.label().c_str());
-    MwListBoxSet(self->device_listbox, -1, 0, dev.label().c_str());
-    MwAddUserHandler(self->device_listbox, MwNlistBoxActivateHandler,
-                     device_activate, self);
+    self->scannedDevices = Device::get();
   }
 
   self->device_window_browse =
       MwVaCreateWidget(MwButtonClass, "b", self->device_window, 320 - 15 - 75,
-                       200 - 15 - 25, 75, 25, MwNtext, "Browse", NULL);
+                       240 - 15 - 25, 75, 25, MwNtext, "Browse", NULL);
   MwAddUserHandler(self->device_window_browse, MwNactivateHandler,
                    file_choose_button_handler, self);
 };

@@ -25,6 +25,7 @@ public:
 
   MwWidget device_window = NULL;
   MwWidget device_list = NULL;
+  MwWidget device_warning = NULL;
   MwWidget device_listbox = NULL;
   MwWidget device_window_browse = NULL;
 
