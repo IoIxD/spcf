@@ -3,17 +3,17 @@
 #include <Mw/Milsko.h>
 #include <filesystem>
 #include <functional>
+#include <mutex>
+#include <thread>
 
 class GUI {
 
 public:
-  char knownDir[255];
   MwWidget window = NULL;
   MwWidget main_box = NULL;
 
   MwWidget tab_view = NULL;
   MwWidget search_results_box = NULL;
-  MwWidget scan_boxes;
 
   MwWidget search_box_holder = NULL;
   MwWidget search_box_text = NULL;
@@ -27,14 +27,28 @@ public:
 
   bool showingScan = false;
 
-  struct ScanEntry {
-    MwWidget box;
-    MwWidget col1;
-    MwWidget col2;
+  std::mutex scanMutex;
+  struct ScanCreationEntry {
+    int idx;
+    char dir[255];
   };
-  std::vector<ScanEntry> scans;
+  struct ScanLine {
+    MwWidget box = NULL;
+    MwWidget tab = NULL;
+    int count = 0;
+  };
+  struct ScanEntry {
+    int idx = 0;
+    char line1[255];
+    char line2[255];
+  };
+  std::vector<ScanCreationEntry> scanBoxCreationQueue;
+  std::vector<ScanEntry> scanBoxEntryQueue;
+  std::vector<ScanLine> scanLines;
+
+  std::vector<std::thread *> scanThreads;
+
   int activateScanner = 0;
-  // std::mutex milskoGUIMutex;
 
   GUI();
 

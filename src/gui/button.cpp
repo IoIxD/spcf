@@ -8,9 +8,46 @@ static const std::string avail_file_exts[] = {
 static void MWAPI file_callback(MwWidget handle, void *user_data,
                                 void *call_data) {
   GUI *self = (GUI *)user_data;
-  memcpy(self->knownDir, call_data, 255);
+  GUI::ScanCreationEntry creationEntry;
   self->showingScan = true;
 
+  int i = self->scanBoxEntryQueue.size();
+  creationEntry.idx = i;
+  memcpy(creationEntry.dir, call_data, 255);
+
+  self->scanBoxCreationQueue.push_back(creationEntry);
+
+  self->scanThreads.push_back(new std::thread([=]() {
+    self->dir_recurse(creationEntry.dir, [=](std::filesystem::path path) {
+      auto e = path.extension().string();
+      std::transform(e.begin(), e.end(), e.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      for (auto ext : avail_file_exts) {
+        if (e == ext) {
+          self->model_context->scan(path.string().c_str());
+          std::string foundLabels = "";
+
+          for (int i = 0; i < 32; i++) {
+            char name[255] = {0};
+            self->model_context->get_scanned_name(i, name);
+            foundLabels += name;
+            foundLabels += ", ";
+          }
+          GUI::ScanEntry entry = {
+              .idx = i,
+          };
+          snprintf(entry.line1, 255, "%s", path.filename().c_str());
+          snprintf(entry.line2, 255, "%s", foundLabels.c_str());
+
+          self->scanMutex.lock();
+          self->scanBoxEntryQueue.push_back(entry);
+          self->scanMutex.unlock();
+
+          break;
+        };
+      }
+    });
+  }));
   self->activateScanner = 1;
 
   MwDispatchUserHandler(handle, MwNcloseHandler, NULL);
@@ -33,48 +70,40 @@ void GUI::scan_button_handler(MwWidget widget, void *user, void *client) {
 
 void GUI::window_scan_thing(MwWidget widget, void *user, void *client) {
   GUI *self = (GUI *)user;
-  if (self->activateScanner == 1) {
-    self->activateScanner = 2;
-  } else if (self->activateScanner == 2) {
-    self->scan_boxes = MwTabAdd(self->tab_view, self->knownDir);
+  bool didScanBoxCreate = false;
+  self->scanMutex.lock();
+  for (auto sc : self->scanBoxCreationQueue) {
+    if (sc.idx >= self->scanLines.size()) {
+      self->scanLines.resize(sc.idx + 1);
+    }
+    self->scanLines[sc.idx].tab = MwTabAdd(self->tab_view, sc.dir);
 
-    MwStep(self->tab_view);
+    int width = MwGetInteger(self->scanLines[sc.idx].tab, MwNwidth);
+    int height = MwGetInteger(self->scanLines[sc.idx].tab, MwNheight);
+    MwWidget box =
+        MwVaCreateWidget(MwListBoxClass, "box", self->scanLines[sc.idx].tab, 0,
+                         0, width - 1, height - 1, NULL);
+    MwListBoxSetWidth(box, 0, -384);
+    int index = MwListBoxSet(box, -1, 0, "Filename");
+    MwListBoxSet(box, index, -1, "Keywords");
 
-    MwStep(self->scan_boxes);
+    self->scanLines[sc.idx].box = box;
 
-    self->activateScanner = 3;
-  } else if (self->activateScanner == 3) {
-    int width = MwGetInteger(self->scan_boxes, MwNwidth);
-    int height = MwGetInteger(self->scan_boxes, MwNheight);
-    MwWidget box = MwVaCreateWidget(MwTreeViewClass, "box", self->scan_boxes, 0,
-                                    0, width - 1, height - 1, NULL);
-    self->dir_recurse(self->knownDir, [=](std::filesystem::path path) {
-      auto e = path.extension().string();
-      std::transform(e.begin(), e.end(), e.begin(),
-                     [](unsigned char c) { return std::tolower(c); });
-      for (auto ext : avail_file_exts) {
-        if (e == ext) {
-          self->model_context->scan(path.string().c_str());
-          std::string foundLabels = "";
-
-          for (int i = 0; i < 32; i++) {
-            char name[255] = {0};
-            self->model_context->get_scanned_name(i, name);
-            foundLabels += name;
-            foundLabels += ", ";
-          }
-
-          char f[255];
-          snprintf(f, 255, "%s - %s", path.filename().c_str(),
-                   foundLabels.c_str());
-          MwTreeViewAdd(box, NULL, NULL, f);
-          MwStep(box);
-          break;
-        };
-      }
-    });
-    self->scans.push_back(
-        (GUI::ScanEntry){.box = box, .col1 = NULL, .col2 = NULL});
-    self->activateScanner = 0;
+    didScanBoxCreate = true;
   }
+  if (didScanBoxCreate) {
+    self->scanBoxCreationQueue.erase(self->scanBoxCreationQueue.begin());
+  }
+
+  bool didScanEntryCreate = false;
+  for (auto sc : self->scanBoxEntryQueue) {
+    int index = MwListBoxSet(self->scanLines[sc.idx].box, -1, 0, sc.line1);
+    MwListBoxSet(self->scanLines[sc.idx].box, index, -1, sc.line2);
+
+    didScanBoxCreate = true;
+  }
+  if (didScanEntryCreate) {
+    self->scanBoxEntryQueue.erase(self->scanBoxEntryQueue.begin());
+  }
+  self->scanMutex.unlock();
 }
