@@ -10,7 +10,7 @@ use candle_transformers::models::{
 struct ModelContext {
     device: Device,
     model: *mut Func<'static>,
-    scanned_names: [[c_char; 32]; 32],
+    scanned_names: [[c_char; 255]; 255],
 }
 #[unsafe(no_mangle)]
 unsafe extern "C" fn model_new(error_str: *mut c_char, error_str_len: usize) -> *mut ModelContext {
@@ -39,7 +39,7 @@ unsafe extern "C" fn model_new(error_str: *mut c_char, error_str_len: usize) -> 
             Ok(Box::leak(Box::new(ModelContext {
                 device,
                 model: Box::leak(Box::new(model)),
-                scanned_names: [[0; 32]; 32],
+                scanned_names: [[0; 255]; 255],
             })))
         } else {
             println!("using gpu model");
@@ -56,7 +56,7 @@ unsafe extern "C" fn model_new(error_str: *mut c_char, error_str_len: usize) -> 
             Ok(Box::leak(Box::new(ModelContext {
                 device,
                 model: Box::leak(Box::new(model)),
-                scanned_names: [[0; 32]; 32],
+                scanned_names: [[0; 255]; 255],
             })))
         }
     }() {
@@ -86,7 +86,7 @@ unsafe extern "C" fn model_scan(
         let image =
             candle_examples::imagenet::load_image224(rust_filename)?.to_device(&(*model).device)?;
         let m = model.as_mut().unwrap().model;
-        (*model).scanned_names = [[0; 32]; 32];
+        (*model).scanned_names = [[0; 255]; 255];
 
         let logits = (*m).forward(&image.unsqueeze(0)?)?;
         let prs = candle_nn::ops::softmax(&logits, D::Minus1)?
