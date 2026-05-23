@@ -11,7 +11,11 @@
 
 class GUI {
   Database mDB;
-  BS::thread_pool<> mPool;
+  /* Thread pool with <8 threads */
+  BS::thread_pool<> mPool =
+      BS::thread_pool<>((std::thread::hardware_concurrency() < 8)
+                            ? std::thread::hardware_concurrency()
+                            : 8);
 
 public:
   MwWidget main_window = NULL;

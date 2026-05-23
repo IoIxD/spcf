@@ -3,6 +3,7 @@ use std::{ffi::CStr, os::raw::c_char, ptr::null_mut};
 use candle_nn::{Func, Module, VarBuilder};
 use candle_transformers::models::{
     convnext,
+    efficientnet::{self, EfficientNet, MBConvConfig},
     mimi::candle::{D, DType, Device, IndexOp},
     resnet,
 };
@@ -10,13 +11,23 @@ use candle_transformers::models::{
 struct ModelContext {
     device: Device,
     model: *mut Func<'static>,
+    efficient_net: Option<EfficientNet>,
     scanned_names: [[c_char; 255]; 255],
 }
 #[unsafe(no_mangle)]
 unsafe extern "C" fn model_new(error_str: *mut c_char, error_str_len: usize) -> *mut ModelContext {
     match || -> Result<*mut ModelContext, Box<dyn std::error::Error>> {
         let no_cpu = std::env::var("SORTMANCER_CONVNEXT").is_ok();
-        let device = match candle_examples::device(false) {
+        let device = match candle_examples::device({
+            #[cfg(feature = "cuda")]
+            {
+                false
+            }
+            #[cfg(not(feature = "cuda"))]
+            {
+                true
+            }
+        }) {
             Ok(device) => device,
             Err(err) => {
                 if std::env::var("SORTMANCER_CONVNEXT").is_ok() {
@@ -28,21 +39,26 @@ unsafe extern "C" fn model_new(error_str: *mut c_char, error_str_len: usize) -> 
             }
         };
         if device.is_cpu() && !no_cpu {
-            println!("using cpu model");
+            println!("using efficientnet");
             let api = hf_hub::api::sync::Api::new()?;
-            let api = api.model("lmz/candle-resnet".into());
-            let filename = api.get("resnet152.safetensors")?;
+            let api = api.model("lmz/candle-efficientnet".into());
+            let filename = api.get("efficientnet-b7.safetensors")?;
             let vb =
                 unsafe { VarBuilder::from_mmaped_safetensors(&[filename], DType::F32, &device)? };
-            let model = resnet::resnet152(candle_examples::imagenet::CLASS_COUNT as usize, vb)?;
+            let model = EfficientNet::new(
+                vb,
+                MBConvConfig::b7(),
+                candle_examples::imagenet::CLASS_COUNT as usize,
+            )?;
 
             Ok(Box::leak(Box::new(ModelContext {
                 device,
-                model: Box::leak(Box::new(model)),
+                model: null_mut(),
+                efficient_net: Some(model),
                 scanned_names: [[0; 255]; 255],
             })))
         } else {
-            println!("using gpu model");
+            println!("using convnext");
             let api = hf_hub::api::sync::Api::new()?;
 
             let api = api.model("timm/convnextv2_huge.fcmae_ft_in1k".into());
@@ -56,6 +72,7 @@ unsafe extern "C" fn model_new(error_str: *mut c_char, error_str_len: usize) -> 
             Ok(Box::leak(Box::new(ModelContext {
                 device,
                 model: Box::leak(Box::new(model)),
+                efficient_net: None,
                 scanned_names: [[0; 255]; 255],
             })))
         }
@@ -85,10 +102,12 @@ unsafe extern "C" fn model_scan(
         let rust_filename = CStr::from_ptr(filename).to_string_lossy().to_string();
         let image =
             candle_examples::imagenet::load_image224(rust_filename)?.to_device(&(*model).device)?;
-        let m = model.as_mut().unwrap().model;
         (*model).scanned_names = [[0; 255]; 255];
+        let logits = match model.as_mut().unwrap().efficient_net.as_ref() {
+            Some(efficientnet) => efficientnet.forward(&image.unsqueeze(0)?)?,
+            None => (*model.as_mut().unwrap().model).forward(&image.unsqueeze(0)?)?,
+        };
 
-        let logits = (*m).forward(&image.unsqueeze(0)?)?;
         let prs = candle_nn::ops::softmax(&logits, D::Minus1)?
             .i(0)?
             .to_vec1::<f32>()?;
@@ -96,7 +115,7 @@ unsafe extern "C" fn model_scan(
         prs.sort_by(|(_, p1), (_, p2)| p2.total_cmp(p1));
         let mut i = 0;
 
-        for &(category_idx, _pr) in prs.iter().take(32) {
+        for &(category_idx, _pr) in prs.iter().take(250) {
             let st = candle_examples::imagenet::CLASSES[category_idx];
             let error = st.to_string();
             let ptr = error.as_ptr() as *mut i8;

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.31)
 project(sortmancer)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 option(ENABLE_CUDA "CUDA Support" OFF)
 
 set(Rust_TOOLCHAIN nightly)
