@@ -73,8 +73,9 @@ void GUI::start_scan(std::string dir, std::string tblName) {
             this->modelContext->scan(path.string().c_str());
             std::string foundLabels = "";
 
-            for (int i = 0; i < 32; i++) {
+            for (int i = 0; i < 250; i++) {
               char name[255] = {0};
+              memset(name, 0, 255);
               this->modelContext->get_scanned_name(i, name);
               foundLabels += name;
               foundLabels += ", ";
