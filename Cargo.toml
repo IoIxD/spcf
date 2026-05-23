@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 candle = "0.1.0"
-candle-examples = "0.10.2"
+candle-examples = {version = "0.10.2"}
 candle-nn = "0.10.2"
 candle-transformers = "0.10.2"
 hf-hub = "0.5.0"
@@ -16,4 +16,7 @@ tracing-subscriber = "0.3.23"
 
 [lib]
 path = "./src/lib.rs"
-crate-type = ["staticlib"]
+crate-type = ["cdylib"]
+
+[features]
+cuda = ["candle-examples/cuda"]

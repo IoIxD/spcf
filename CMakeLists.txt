@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.31)
 project(sortmancer)
 
+option(ENABLE_CUDA "CUDA Support" OFF)
+
 set(Rust_TOOLCHAIN nightly)
 include(FetchContent)
 FetchContent_Declare(
@@ -10,7 +12,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Corrosion)
 
-corrosion_import_crate(MANIFEST_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml)
+if(ENABLE_CUDA)
+  corrosion_import_crate(MANIFEST_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml FEATURES cuda)
+else()
+  corrosion_import_crate(MANIFEST_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml)
+endif()
 FILE(GLOB_RECURSE SOURCES src/*.cpp src/*.c)
 
 find_package(OpenSSL REQUIRED)
@@ -20,6 +26,11 @@ add_subdirectory(${MILSKO_DIR})
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 target_link_libraries(${PROJECT_NAME} sortmancer_rust sqlite3 Mw ${OPENSSL_LIBRARIES})
+if(ENABLE_CUDA)
+  find_package(CUDAToolkit REQUIRED)
+  target_link_directories(${PROJECT_NAME} PUBLIC /usr/local/cuda/lib64/)
+  target_link_libraries(${PROJECT_NAME} ${CUDAToolkit_LIBRARIES} cuda CUDA::cupti)
+endif()
 if(UNIX)
   target_link_libraries(${PROJECT_NAME} blkid)
 endif()

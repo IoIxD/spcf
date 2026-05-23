@@ -2,6 +2,7 @@ use std::{ffi::CStr, os::raw::c_char, ptr::null_mut};
 
 use candle_nn::{Func, Module, VarBuilder};
 use candle_transformers::models::{
+    convnext,
     mimi::candle::{D, DType, Device, IndexOp},
     resnet,
 };
@@ -9,24 +10,44 @@ use candle_transformers::models::{
 struct ModelContext {
     device: Device,
     model: *mut Func<'static>,
-    scanned_names: [[c_char; 255]; 255],
+    scanned_names: [[c_char; 32]; 32],
 }
 #[unsafe(no_mangle)]
 unsafe extern "C" fn model_new(error_str: *mut c_char, error_str_len: usize) -> *mut ModelContext {
     match || -> Result<*mut ModelContext, Box<dyn std::error::Error>> {
-        let device = Device::Cpu;
-        let api = hf_hub::api::sync::Api::new()?;
-        let api = api.model("lmz/candle-resnet".into());
-        let filename = api.get("resnet152.safetensors")?;
-        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[filename], DType::F32, &device)? };
-        let class_count = candle_examples::imagenet::CLASS_COUNT as usize;
-        let model = resnet::resnet152(class_count, vb)?;
+        let device = candle_examples::device(false)?;
+        if device.is_cpu() {
+            println!("using cpu model");
+            let api = hf_hub::api::sync::Api::new()?;
+            let api = api.model("lmz/candle-resnet".into());
+            let filename = api.get("resnet152.safetensors")?;
+            let vb =
+                unsafe { VarBuilder::from_mmaped_safetensors(&[filename], DType::F32, &device)? };
+            let model = resnet::resnet152(candle_examples::imagenet::CLASS_COUNT as usize, vb)?;
 
-        Ok(Box::leak(Box::new(ModelContext {
-            device,
-            model: Box::leak(Box::new(model)),
-            scanned_names: [[0; 255]; 255],
-        })))
+            Ok(Box::leak(Box::new(ModelContext {
+                device,
+                model: Box::leak(Box::new(model)),
+                scanned_names: [[0; 32]; 32],
+            })))
+        } else {
+            println!("using gpu model");
+            let api = hf_hub::api::sync::Api::new()?;
+
+            let api = api.model("timm/convnextv2_huge.fcmae_ft_in1k".into());
+            let filename = api.get("model.safetensors")?;
+            let vb =
+                unsafe { VarBuilder::from_mmaped_safetensors(&[filename], DType::F32, &device)? };
+
+            let config = convnext::Config::huge();
+            let model = convnext::convnext(&config, 1000, vb)?;
+
+            Ok(Box::leak(Box::new(ModelContext {
+                device,
+                model: Box::leak(Box::new(model)),
+                scanned_names: [[0; 32]; 32],
+            })))
+        }
     }() {
         Ok(a) => a,
         Err(err) => {
@@ -54,7 +75,7 @@ unsafe extern "C" fn model_scan(
         let image =
             candle_examples::imagenet::load_image224(rust_filename)?.to_device(&(*model).device)?;
         let m = model.as_mut().unwrap().model;
-        (*model).scanned_names = [[0; 255]; 255];
+        (*model).scanned_names = [[0; 32]; 32];
 
         let logits = (*m).forward(&image.unsqueeze(0)?)?;
         let prs = candle_nn::ops::softmax(&logits, D::Minus1)?

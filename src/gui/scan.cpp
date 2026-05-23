@@ -33,6 +33,10 @@ static void onError(std::string err, void *ud) {
 void GUI::start_scan(std::string dir, std::string tblName) {
   if (!modelContext) {
     modelContext = new ModelContext();
+    if (!modelContext->valid()) {
+      onError(modelContext->error(), this);
+      return;
+    }
   }
   GUI::ScanCreationEntry creationEntry;
   this->showingScan = true;
