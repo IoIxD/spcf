@@ -64,34 +64,40 @@ void GUI::start_scan(std::string dir, std::string tblName) {
           if (path.string().find(creationEntry.dir) != std::string::npos) {
             p = p.substr(strlen(creationEntry.dir));
           }
-          printf(">%s\n", p.c_str());
-          this->modelContext->scan(path.string().c_str());
-          std::string foundLabels = "";
 
-          for (int i = 0; i < 32; i++) {
-            char name[255] = {0};
-            this->modelContext->get_scanned_name(i, name);
-            foundLabels += name;
-            foundLabels += ", ";
-          }
-          GUI::ScanEntry entry = {
-              .idx = i,
-          };
-          snprintf(entry.line1, 255, "%s", p.c_str());
-          snprintf(entry.line2, 255, "%s", foundLabels.c_str());
+          mPool.submit_task([=]() {
+            stdoutMutex.lock();
+            printf(">%s\n", p.c_str());
+            stdoutMutex.unlock();
 
-          // Image *img = image_get(path.string().c_str());
+            this->modelContext->scan(path.string().c_str());
+            std::string foundLabels = "";
 
-          // uint8_t *data = image_get_pixels(img);
-          // size_t len = image_get_pixel_len(img);
+            for (int i = 0; i < 32; i++) {
+              char name[255] = {0};
+              this->modelContext->get_scanned_name(i, name);
+              foundLabels += name;
+              foundLabels += ", ";
+            }
+            GUI::ScanEntry entry = {
+                .idx = i,
+            };
+            snprintf(entry.line1, 255, "%s", p.c_str());
+            snprintf(entry.line2, 255, "%s", foundLabels.c_str());
 
-          mDB.new_entry(tblName, entry.line1, entry.line2, onError, this);
+            // Image *img = image_get(path.string().c_str());
 
-          // image_free(img);
+            // uint8_t *data = image_get_pixels(img);
+            // size_t len = image_get_pixel_len(img);
 
-          this->tickMutex.lock();
-          this->scanBoxEntryQueue.push_back(entry);
-          this->tickMutex.unlock();
+            mDB.new_entry(tblName, entry.line1, entry.line2, onError, this);
+
+            // image_free(img);
+
+            this->tickMutex.lock();
+            this->scanBoxEntryQueue.push_back(entry);
+            this->tickMutex.unlock();
+          });
 
           break;
         };

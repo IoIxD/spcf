@@ -2,6 +2,7 @@
 #include "../database/database.hpp"
 #include "../devices/devices.hpp"
 #include "../model/model.hpp"
+#include "../thread/thread.hpp"
 #include <Mw/Milsko.h>
 #include <filesystem>
 #include <functional>
@@ -10,6 +11,7 @@
 
 class GUI {
   Database mDB;
+  BS::thread_pool<> mPool;
 
 public:
   MwWidget main_window = NULL;
@@ -63,6 +65,8 @@ public:
   std::vector<std::string> errorCreationQueue;
   std::vector<ScanCreationEntry> scanStartQueue;
   std::string scanDeviceName;
+
+  std::mutex stdoutMutex;
 
   GUI();
 

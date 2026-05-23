@@ -45,12 +45,12 @@ unsafe extern "C" fn model_new(error_str: *mut c_char, error_str_len: usize) -> 
             println!("using gpu model");
             let api = hf_hub::api::sync::Api::new()?;
 
-            let api = api.model("timm/convnextv2_large.fcmae_ft_in1k".into());
+            let api = api.model("timm/convnextv2_huge.fcmae_ft_in1k".into());
             let filename = api.get("model.safetensors")?;
             let vb =
                 unsafe { VarBuilder::from_mmaped_safetensors(&[filename], DType::F32, &device)? };
 
-            let config = convnext::Config::large();
+            let config = convnext::Config::huge();
             let model = convnext::convnext(&config, 1000, vb)?;
 
             Ok(Box::leak(Box::new(ModelContext {
