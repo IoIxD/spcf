@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <sqlite3.h>
 #include <string>
 
@@ -19,6 +20,6 @@ public:
   bool create_table(std::string name,
                     void (*onError)(std::string err, void *ud), void *ud);
   void new_entry(std::string tbl_name, std::string filename,
-                 std::string keywords,
+                 std::string keywords, uint8_t *data, size_t data_len,
                  void (*onError)(std::string err, void *ud), void *ud);
 };

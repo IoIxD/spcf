@@ -79,16 +79,47 @@ bool Database::create_table(std::string table_name,
   return this->statement(path, onError, ud);
 }
 void Database::new_entry(std::string table_name, std::string filename,
-                         std::string keywords,
+                         std::string keywords, uint8_t *data, size_t data_len,
                          void (*onError)(std::string err, void *ud), void *ud) {
-  char path[2048];
-  memset(path, 0, sizeof(path));
-  snprintf(path, sizeof(path) - 1,
-           "INSERT INTO \"%s\" (filename, keywords) VALUES ("
-           "\"%s\", \"%s\""
+  char sql[2048];
+  memset(sql, 0, sizeof(sql));
+  snprintf(sql, sizeof(sql) - 1,
+           "INSERT INTO \"%s\" (filename, keywords, data) VALUES ("
+           "\"%s\", \"%s\", ?"
            ");",
            table_name.c_str(), filename.c_str(), keywords.c_str());
 
-  this->statement(path, onError, ud);
+  int err;
+  if ((err = sqlite3_prepare_v2(mDB, sql, strlen(sql), &mStatement, &mTail)) !=
+      SQLITE_OK) {
+    goto err;
+  };
+  err = sqlite3_bind_blob(mStatement, 1, data, data_len, SQLITE_TRANSIENT);
+  if (err != SQLITE_OK && err != SQLITE_DONE) {
+    goto err;
+  };
+
+  err = sqlite3_step(mStatement);
+  if (err != SQLITE_OK && err != SQLITE_DONE) {
+    goto err;
+  };
+
+  return;
+
+err:
+  char error[2048];
+  memset(error, 0, sizeof(error));
+  snprintf(error, sizeof(error) - 1, "Database error: %s", sqlite3_errmsg(mDB));
+  printf("%s\n", error);
+  if (onError) {
+    onError(error, ud);
+  } else {
+#ifdef __linux__
+    raise(SIGTRAP);
+#else
+    exit(1);
+#endif
+  }
+  return;
 };
 Database::~Database() { sqlite3_close(mDB); }

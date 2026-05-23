@@ -1,3 +1,4 @@
+#include "../image/image.hpp"
 #include "gui.hpp"
 #include <algorithm>
 
@@ -75,7 +76,15 @@ void GUI::start_scan(std::string dir, std::string tblName) {
           snprintf(entry.line1, 255, "%s", p.c_str());
           snprintf(entry.line2, 255, "%s", foundLabels.c_str());
 
-          mDB.new_entry(tblName, entry.line1, entry.line2, onError, this);
+          Image *img = image_get(path.string().c_str());
+
+          uint8_t *data = image_get_pixels(img);
+          size_t len = image_get_pixel_len(img);
+
+          mDB.new_entry(tblName, entry.line1, entry.line2, data, len, onError,
+                        this);
+
+          image_free(img);
 
           this->tickMutex.lock();
           this->scanBoxEntryQueue.push_back(entry);

@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] /* why is this even a thing in rust */
-
 use std::{ffi::CStr, os::raw::c_char, ptr::null_mut};
 
 use candle_nn::{Func, Module, VarBuilder};
