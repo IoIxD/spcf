@@ -3,9 +3,8 @@ use std::{ffi::CStr, os::raw::c_char, ptr::null_mut};
 use candle_nn::{Func, Module, VarBuilder};
 use candle_transformers::models::{
     convnext,
-    efficientnet::{self, EfficientNet, MBConvConfig},
+    efficientnet::{EfficientNet, MBConvConfig},
     mimi::candle::{D, DType, Device, IndexOp},
-    resnet,
 };
 
 struct ModelContext {

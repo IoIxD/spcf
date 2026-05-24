@@ -2,6 +2,3 @@
 
 #[path = "model/model.rs"]
 mod model;
-
-#[path = "image/image.rs"]
-mod image;
