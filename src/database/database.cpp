@@ -122,28 +122,32 @@ Database::search(std::string search_str,
     err = sqlite3_step(mStatement);
   };
 
-  for (auto table : tables) {
-    std::string row_query = "SELECT filename, keywords FROM \"" + table +
-                            "\" WHERE keywords MATCH \'" + search_str + "\';";
-    if ((err = sqlite3_prepare_v2(mDB, row_query.c_str(), row_query.length(),
-                                  &mStatement, &mTail)) != SQLITE_OK) {
-      printf("Error on %s: %s", table.c_str(), sqlite3_errmsg(mDB));
-      continue;
-    };
-    err = sqlite3_step(mStatement);
-
-    while (err == SQLITE_OK || err == SQLITE_ROW) {
-      const char *filename = (const char *)sqlite3_column_text(mStatement, 0);
-      const char *keywords = (const char *)sqlite3_column_text(mStatement, 1);
-
-      entries.push_back(Database::DatabaseEntry{
-          .table_name = table.c_str(),
-          .filename = filename,
-          .keywords = keywords,
-      });
-
+  for (std::string col_name : {"keywords", "filename"}) {
+    /* keyword filtering */
+    for (auto table : tables) {
+      std::string row_query = "SELECT filename, keywords FROM \"" + table +
+                              "\" WHERE " + col_name + " MATCH \'" +
+                              search_str + "\';";
+      if ((err = sqlite3_prepare_v2(mDB, row_query.c_str(), row_query.length(),
+                                    &mStatement, &mTail)) != SQLITE_OK) {
+        printf("Error on %s: %s", table.c_str(), sqlite3_errmsg(mDB));
+        continue;
+      };
       err = sqlite3_step(mStatement);
-    };
+
+      while (err == SQLITE_OK || err == SQLITE_ROW) {
+        const char *filename = (const char *)sqlite3_column_text(mStatement, 0);
+        const char *keywords = (const char *)sqlite3_column_text(mStatement, 1);
+
+        entries.push_back(Database::DatabaseEntry{
+            .table_name = table.c_str(),
+            .filename = filename,
+            .keywords = keywords,
+        });
+
+        err = sqlite3_step(mStatement);
+      };
+    }
   }
 
   std::sort(
