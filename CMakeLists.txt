@@ -24,6 +24,7 @@ FILE(GLOB_RECURSE SOURCES src/*.cpp src/*.c)
 find_package(OpenSSL REQUIRED)
 
 set(MILSKO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/submodules/milsko)
+set(MW_BUILD_STATIC ON)
 add_subdirectory(${MILSKO_DIR})
 
 add_executable(${PROJECT_NAME} ${SOURCES})
