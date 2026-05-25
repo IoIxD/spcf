@@ -64,7 +64,7 @@ void GUI::start_scan(std::string dir, std::string tblName) {
             p = p.substr(strlen(creationEntry.dir));
           }
 
-          mPool.submit_task([=]() {
+          auto _ = mPool.submit_task([=]() {
             stdoutMutex.lock();
             printf(">%s\n", p.c_str());
             stdoutMutex.unlock();

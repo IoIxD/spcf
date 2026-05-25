@@ -4,8 +4,15 @@ static void MWAPI file_callback(MwWidget handle, void *user_data,
                                 void *call_data) {
   GUI *self = (GUI *)user_data;
 
-  MwDispatchUserHandler(handle, MwNcloseHandler, NULL);
-  MwDestroyWidget(handle);
+  /* We call this function outside the context of Milsko (in the dbus
+   * functions), and when we do this, handle is null since there's no file
+   * chooser widget to destroy
+   */
+  if (handle) {
+    MwDispatchUserHandler(handle, MwNcloseHandler, NULL);
+    MwDestroyWidget(handle);
+  }
+
   GUI::ScanCreationEntry entry;
   entry.idx = 0;
   snprintf(entry.dir, sizeof(entry.dir), "%s", (char *)call_data);
@@ -16,13 +23,31 @@ static void MWAPI file_callback(MwWidget handle, void *user_data,
     MwDestroyWidget(self->device_window);
   }
 }
+#ifdef __linux__
+static void dbus_tick(MwWidget handle, void *user_data, void *call_data) {
+  GUI::DBusContext *dbus = (GUI::DBusContext *)user_data;
+  dbus_connection_read_write_dispatch(dbus->conn(), -1);
+}
+
+void GUI::start_dbus_filechooser(MwUserHandler handler) {
+  dbus.open_file(this, handler);
+  MwAddUserHandler(main_window->main_window, MwNtickHandler, dbus_tick, &dbus);
+};
+#endif
 
 void GUI::file_choose_button_handler(MwWidget widget, void *user,
                                      void *client) {
   GUI *self = (GUI *)user;
 
-  self->main_window->directory_chooser =
-      MwDirectoryChooser(self->main_window->main_window, "Scan a Directory");
-  MwAddUserHandler(self->main_window->directory_chooser,
-                   MwNdirectoryChosenHandler, file_callback, self);
+#ifdef __linux__
+  if (self->dbus.valid()) {
+    self->start_dbus_filechooser(file_callback);
+  } else
+#endif
+  {
+    self->main_window->directory_chooser =
+        MwDirectoryChooser(self->main_window->main_window, "Scan a Directory");
+    MwAddUserHandler(self->main_window->directory_chooser,
+                     MwNdirectoryChosenHandler, file_callback, self);
+  }
 };

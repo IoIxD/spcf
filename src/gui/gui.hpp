@@ -9,6 +9,15 @@
 #include <mutex>
 #include <thread>
 
+#ifdef __linux__
+#include <dbus/dbus.h>
+struct file_chooser_handler_ctx {
+  int status;
+  MwUserHandler callback;
+  class GUI *gui;
+};
+#endif
+
 class GUI {
   /* Thread pool with <8 threads */
   BS::thread_pool<> mPool =
@@ -17,7 +26,33 @@ class GUI {
                             : 8);
 
 public:
+#ifdef __linux__
+  class DBusContext {
+    bool mValid = false;
+    DBusError mErr;
+    DBusConnection *mConn = NULL;
+    DBusMessage *mMessage = NULL;
+    DBusMessage *mReply = NULL;
+
+    struct file_chooser_handler_ctx mHandlerContext;
+
+  public:
+    char handle_path[256];
+
+    typedef void (*DBusPortalPollListener)(void *handle, MwU32 new_value);
+
+    DBusContext();
+    // ~DBusContext();
+
+    bool valid() { return mValid; };
+
+    bool open_file(GUI *gui, MwUserHandler handler);
+    DBusConnection *conn() { return mConn; }
+  };
+#endif
+
   Database db;
+  DBusContext dbus;
 
   class MainWindow {
   public:
@@ -50,6 +85,10 @@ public:
   MwWidget device_window_browse = NULL;
 
   ModelContext *modelContext = NULL;
+
+#ifdef __linux__
+  void start_dbus_filechooser(MwUserHandler handler);
+#endif
 
   std::mutex stdoutMutex;
 
