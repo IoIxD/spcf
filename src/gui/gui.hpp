@@ -15,6 +15,8 @@ struct file_chooser_handler_ctx {
   int status;
   MwUserHandler callback;
   class GUI *gui;
+  void (*onError)(std::string err, void *ud);
+  void *onError_ud;
 };
 #endif
 
@@ -46,7 +48,10 @@ public:
 
     bool valid() { return mValid; };
 
-    bool open_file(GUI *gui, MwUserHandler handler);
+    int status() { return mHandlerContext.status; };
+
+    bool open_file(GUI *gui, MwUserHandler handler,
+                   void (*onError)(std::string err, void *ud), void *ud);
     DBusConnection *conn() { return mConn; }
   };
 #endif

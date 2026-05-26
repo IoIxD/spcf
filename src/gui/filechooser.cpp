@@ -26,11 +26,21 @@ static void MWAPI file_callback(MwWidget handle, void *user_data,
 #ifdef __linux__
 static void dbus_tick(MwWidget handle, void *user_data, void *call_data) {
   GUI::DBusContext *dbus = (GUI::DBusContext *)user_data;
-  dbus_connection_read_write_dispatch(dbus->conn(), -1);
+  if (dbus->status() != -1) {
+    return;
+  }
+  dbus_connection_read_write_dispatch(dbus->conn(), 50);
+}
+
+static void onError(std::string err, void *ud) {
+  GUI *self = (GUI *)ud;
+  self->errMutex.lock();
+  self->errorCreationQueue.push_back(err);
+  self->errMutex.unlock();
 }
 
 void GUI::start_dbus_filechooser(MwUserHandler handler) {
-  dbus.open_file(this, handler);
+  dbus.open_file(this, handler, onError, this);
   MwAddUserHandler(main_window->main_window, MwNtickHandler, dbus_tick, &dbus);
 };
 #endif

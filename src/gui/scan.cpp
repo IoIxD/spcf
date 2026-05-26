@@ -17,7 +17,7 @@ void dir_recurse(const std::string &path,
                         f->d_name + std::filesystem::path::preferred_separator,
                     cb);
       } else {
-        cb(path + f->d_name);
+        cb(path + std::filesystem::path::preferred_separator + f->d_name);
       }
     }
     closedir(dir);

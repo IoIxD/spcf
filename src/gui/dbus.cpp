@@ -87,6 +87,22 @@ file_chooser_response_handler(DBusConnection *connection, DBusMessage *message,
       dbus_message_iter_recurse(&variant, &uris);
       dbus_message_iter_get_basic(&uris, &uri);
 
+      std::string filename = uri;
+      size_t idx;
+      if ((idx = filename.find("file://")) != std::string::npos) {
+        filename.erase(idx, idx + 7);
+      }
+      if ((idx = filename.find("://")) != std::string::npos) {
+        ctx->onError(
+            "Chose folder that has a \"://\" prefix\n(that isn't "
+            "file://).\nNote that ripping "
+            "directly from network shares, etc. isn't\nsupported, it must be "
+            "a folder on your local filesystem.\n",
+            ctx->onError_ud);
+        ctx->status = 0;
+        return DBUS_HANDLER_RESULT_HANDLED;
+      }
+
       ctx->callback(NULL, ctx->gui, (void *)uri);
       break;
     }
@@ -103,7 +119,9 @@ static const DBusObjectPathVTable file_chooser_response_vtable = {
     .message_function = file_chooser_response_handler,
 };
 
-bool GUI::DBusContext::open_file(GUI *gui, MwUserHandler handler) {
+bool GUI::DBusContext::open_file(GUI *gui, MwUserHandler handler,
+                                 void (*onError)(std::string err, void *ud),
+                                 void *ud) {
   DBusMessage *msg;
   DBusMessageIter margs;
   DBusMessageIter options;
@@ -187,6 +205,8 @@ bool GUI::DBusContext::open_file(GUI *gui, MwUserHandler handler) {
   mHandlerContext.status = -1;
   mHandlerContext.callback = handler;
   mHandlerContext.gui = gui;
+  mHandlerContext.onError = onError;
+  mHandlerContext.onError_ud = ud;
 
   dbus_connection_try_register_object_path(
       mConn, handle, &file_chooser_response_vtable, &mHandlerContext, &error);

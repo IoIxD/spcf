@@ -86,7 +86,7 @@ void Database::new_entry(std::string table_name, std::string filename,
            ");",
            table_name.c_str(), filename.c_str(), keywords.c_str());
 
-  this->statement(sql);
+  this->statement(sql, onError, ud);
   return;
 };
 
